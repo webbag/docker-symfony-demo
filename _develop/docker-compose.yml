@@ -1,0 +1,53 @@
+version: '3'
+
+services:
+  demo-web:
+      build: ./config/dockerfiles/nginx
+      image: nginx
+      volumes:
+          - ./../website:/var/www/vhosts/symfony
+          - ./config/site.conf:/etc/nginx/conf.d/site.conf
+          - ./nginx/log:/var/log/nginx
+          - ./config/nginx.logrotate:/etc/logrotate.d/nginx
+      links:
+          - demo-php
+      container_name: ${PROJECT_NAME}-web
+      expose:
+         - 80
+      environment:
+         VIRTUAL_HOST: ${VIRTUAL_HOST}
+      restart: on-failure:10
+
+  demo-php:
+        build: ./config/dockerfiles/php/dev
+        image: dev-php:7.2-fpm
+        volumes:
+            - ./../website:/var/www/vhosts/symfony
+            - ./profiler:/tmp/xdebug
+            - /etc/localtime:/etc/localtime
+        container_name: ${PROJECT_NAME}-php
+        environment:
+            XDEBUG_CONFIG: remote_host=${NGINX_PROXY_IP}
+        working_dir: /var/www/vhosts/symfony/
+        restart: on-failure:10
+        depends_on:
+          - demo-postgres
+
+  demo-postgres:
+      image: postgres:10.3
+      container_name: ${PROJECT_NAME}-postgres
+      volumes:
+           - ./postgres/db:/var/lib/postgresql/data
+      environment:
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        - POSTGRES_DB=${POSTGRES_DB}
+      expose:
+        - 5432
+      ports:
+        - "5432:5432"
+
+networks:
+  default:
+    external:
+      name: nginx-proxy
